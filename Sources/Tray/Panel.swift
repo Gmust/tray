@@ -51,6 +51,7 @@ struct PanelView: View {
     let cells: [PanelCell]
     let needsScreenRecording: Bool
     let onClick: (CGWindowID) -> Void
+    let onDragEnd: (CGWindowID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -67,7 +68,7 @@ struct PanelView: View {
             }
             FlowLayout(maxWidth: maxPanelWidth - 16, spacing: 4) {
                 ForEach(cells) { cell in
-                    CellView(cell: cell) { onClick(cell.id) }
+                    CellView(cell: cell, action: { onClick(cell.id) }, dragEnded: { onDragEnd(cell.id) })
                 }
             }
         }
@@ -78,17 +79,31 @@ struct PanelView: View {
 private struct CellView: View {
     let cell: PanelCell
     let action: () -> Void
+    let dragEnded: () -> Void
     @State private var hovering = false
+    @State private var dragging = false
 
     var body: some View {
         Image(nsImage: cell.image)
             .padding(2)
             .background(RoundedRectangle(cornerRadius: 5).fill(.primary.opacity(hovering ? 0.15 : 0)))
+            .opacity(dragging ? 0.4 : 1)
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
             .onTapGesture(perform: action)
+            .gesture(DragGesture(minimumDistance: 6)
+                .onChanged { _ in dragging = true }
+                .onEnded { _ in
+                    dragging = false
+                    dragEnded()
+                })
             .help(cell.name)
     }
+}
+
+/// True when `point` (AppKit screen coordinates) is in a menu bar: above its screen's visible frame.
+private func isInMenuBar(_ point: NSPoint) -> Bool {
+    NSScreen.screens.contains { $0.frame.contains(point) && point.y >= $0.visibleFrame.maxY }
 }
 
 private func openScreenRecordingSettings() {
@@ -108,9 +123,11 @@ private final class KeyPanel: NSPanel {
 final class Panel {
     private let window = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                                   backing: .buffered, defer: true)
-    private let hosting = NSHostingView(rootView: PanelView(cells: [], needsScreenRecording: false, onClick: { _ in }))
+    private let hosting = NSHostingView(rootView: PanelView(cells: [], needsScreenRecording: false,
+                                                            onClick: { _ in }, onDragEnd: { _ in }))
     private let discover: () -> [StatusWindow]
     private let onClick: (StatusWindow) -> Void
+    private let onDropOnMenuBar: (StatusWindow) -> Void
     private var anchor: NSStatusBarButton?
     private var items: [StatusWindow] = []
     private var images: [CGWindowID: NSImage] = [:]
@@ -125,9 +142,11 @@ final class Panel {
 
     var isOpen: Bool { window.isVisible }
 
-    init(discover: @escaping () -> [StatusWindow], onClick: @escaping (StatusWindow) -> Void) {
+    init(discover: @escaping () -> [StatusWindow], onClick: @escaping (StatusWindow) -> Void,
+         onDropOnMenuBar: @escaping (StatusWindow) -> Void) {
         self.discover = discover
         self.onClick = onClick
+        self.onDropOnMenuBar = onDropOnMenuBar
         window.level = .popUpMenu
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isOpaque = false
@@ -210,11 +229,20 @@ final class Panel {
                       name: NSRunningApplication(processIdentifier: item.pid)?.localizedName ?? "",
                       image: images[item.windowID] ?? appIcon(for: item))
         }
-        hosting.rootView = PanelView(cells: cells, needsScreenRecording: !CGPreflightScreenCaptureAccess()) { [weak self] id in
-            guard let self, let item = self.items.first(where: { $0.windowID == id }) else { return }
-            self.close()
-            self.onClick(item)
-        }
+        hosting.rootView = PanelView(
+            cells: cells, needsScreenRecording: !CGPreflightScreenCaptureAccess(),
+            onClick: { [weak self] id in
+                guard let self, let item = self.items.first(where: { $0.windowID == id }) else { return }
+                self.close()
+                self.onClick(item)
+            },
+            onDragEnd: { [weak self] id in
+                guard let self, let item = self.items.first(where: { $0.windowID == id }),
+                      isInMenuBar(NSEvent.mouseLocation)
+                else { return }
+                self.close()
+                self.onDropOnMenuBar(item)
+            })
         guard let anchorWindow = anchor?.window, let screen = anchorWindow.screen ?? NSScreen.main else { return }
         let size = hosting.fittingSize
         let x = min(max(anchorWindow.frame.midX - size.width / 2, screen.frame.minX + 4), screen.frame.maxX - size.width - 4)

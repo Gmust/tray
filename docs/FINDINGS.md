@@ -89,5 +89,37 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
   items changed: CPU 33% → 38% → 28%, sensor 66° → 50°, network rates. Evidence: owner screenshots,
   2026-10-30.
 
+- **Moving items with synthetic ⌘-drags works with Ice's delivery.** `--move 55 right` took Spotlight
+  from x −1861 (off-screen, tray) to right of the chevron, `--move 55 tray` put it back. Simpler event
+  sequences (no event taps, mouse-down on the item, no lift check) never moved anything. What made it work
+  (`Sources/Tray/Move.swift`): ⌘ mouse-down at (20000, 20000) addressed to the item's window, wait for
+  the frame to change, mouse-up at the target's edge addressed to the target; each event posted via a null
+  event to the app → session tap → back to the app. Evidence: `--move` output + `--dump`, 2026-10-30.
+- **Display copies cannot be moved.** The same events on Spotlight's built-in copies (84830, 80253) never
+  changed their frames, while its original (55, the window AX reports) moved. Clicks and moves go to the
+  original (`movableWindow`), captures to the drawn window. Evidence: `--move`, 2026-10-30.
+
+- **Display copies drift.** While the menu bar relayouts (e.g. the purple screen-capture indicator
+  appearing), copies keep stale frames next to the originals: the panel showed 31–34 items, each item
+  twice (light and dark glyphs). Only AX-backed windows are tray items now (`axBacked`). Evidence: Tray
+  log "panel opened: 31/33 items", owner screenshot, 2026-10-30.
+- **Synthetic clicks must land before the cursor is restored.** Telegram (Qt) ignored AXPress; the
+  fallback click went nowhere while the cursor was warped back right after posting. Clicks now wait
+  for a session tap to see each event (Ice's `postEventAndWaitToReceive`). Fix unverified. Evidence:
+  Tray log "AXPress opened nothing for 319; clicking" → item moved back after 1.5 s, 2026-10-30.
+
+- **Click, not AXPress, for Telegram.** AXPress on Telegram's item (Qt) opened nothing; waiting 1.5 s
+  for it before the fallback click left the item next to the chevron for ~3 s. A synthetic click delivered
+  like Ice's opened Telegram's menu (owner confirmed). Clicks now come first. Evidence: Tray log
+  15:56:13 → 15:56:16, owner report, 2026-10-30.
+- **The purple indicator is `com.apple.menuextra.audiovideo`** ("Audio and Video Controls", popover "Tray
+  is capturing your screen"), shown while Tray captures, at its saved place (here: just left of the
+  chevron, preferred position 326). Moving it into the tray does not stick: Tray moved it three times in
+  10 s, macOS recreated it at 326 each time. Tray leaves it alone and keeps it out of the panel. Evidence:
+  Tray log 16:05:05–16:05:15, `defaults read com.apple.controlcenter`, 2026-10-30.
+- **Stats' popover was not seen as "opened"** (layer 0, only layers ≠ 0/25 counted), so its item went
+  back after 1.5 s. Normal-layer windows hanging from the menu bar now count. Fix unverified. Evidence:
+  Tray log "menu of 77831: nothing opened", 2026-10-30.
+
 ## Open
 - Does AX follow the display with the active menu bar, together with the "original" windows?

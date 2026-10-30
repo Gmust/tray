@@ -1,7 +1,8 @@
 # Tray — product spec
 
 Source: the owner's brief (2026-10-30), kept verbatim below. Design §1–7 is decided:
-ask before redesigning. Only the last section, "Delivery plan", is an agent proposal.
+ask before redesigning. The last two sections are written by the agent: "Delivery plan" (a proposal) and
+"Changes agreed with the owner after the brief" (these override the brief where they differ).
 
 # Goal
 Build "Tray": a native macOS menu bar utility that works like the Windows system tray overflow.
@@ -98,3 +99,15 @@ Each phase ends with evidence from the Mac (`--dump` / `--capture` / `log stream
 3. Onboarding (§7), live capture (§3) + `--capture`; verify Stats keeps updating off-screen.
 4. Panel (§4).
 5. Click forwarding (§5) + `--move` + pin/unpin context menu.
+
+# Changes agreed with the owner after the brief
+Recorded by the agent; each was asked for or accepted by the owner, 2026-10-30.
+- §1 default: Apple's own status items (bundle id `com.apple.*`) start pinned right of the chevron; only
+  third-party items start in the tray. Done once per Mac; later moves are the owner's.
+- §3 capture: CoreGraphics `CGImage(windowListFromArrayScreenBounds:)` instead of ScreenCaptureKit, which got
+  no frames for off-screen items on the notch display (docs/FINDINGS.md).
+- §3: macOS's purple screen-recording indicator is accepted; Tray leaves it alone and keeps it out of the panel.
+- §5: a synthetic click first instead of AXPress (Telegram ignores AXPress).
+- §5 context menu replaced by drag & drop: drag a panel cell onto the menu bar to pin it; ⌘-drop a menu bar
+  item onto the chevron to put it into the tray.
+

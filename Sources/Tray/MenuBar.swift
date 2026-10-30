@@ -12,10 +12,11 @@ final class MenuBar: NSObject {
     private let separator: NSStatusItem
     private var expanded = false
     private var observers: [NSObjectProtocol] = []
-    // Until click forwarding exists (SPEC §5, delivery plan phase 5), clicking a cell reveals the tray
-    // in the menu bar so the real item can be clicked there.
+    /// Set while Tray moves items itself, so its own moves are not taken for the owner's drops.
+    private var busy = false
     private lazy var panel = Panel(discover: { [unowned self] in self.currentTrayItems() },
-                                   onClick: { [unowned self] _ in self.expanded = true; self.apply() })
+                                   onClick: { [unowned self] item in Task { @MainActor in await self.forwardClick(to: item) } },
+                                   onDropOnMenuBar: { [unowned self] item in Task { @MainActor in await self.pin(item) } })
 
     override init() {
         Self.seedPositions()
@@ -34,14 +35,16 @@ final class MenuBar: NSObject {
         chevron.button?.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Tray")
         separator.button?.title = "│"
 
-        // Re-check whenever our items move: a deferred collapse can proceed once they are placed, and
-        // ⌘-dragging the separator right of the chevron while collapsed must expand at once.
+        // Re-check whenever our items move: a deferred collapse can proceed once they are placed,
+        // ⌘-dragging the separator right of the chevron while collapsed must expand at once, and an item
+        // ⌘-dropped onto the chevron lands between separator and chevron (it shifts the separator).
         for window in [chevron.button?.window, separator.button?.window].compactMap({ $0 }) {
             observers.append(NotificationCenter.default.addObserver(
                 forName: NSWindow.didMoveNotification, object: window, queue: .main
             ) { [weak self] _ in
                 guard let self, !self.expanded else { return }
                 self.apply()
+                Task { @MainActor in await self.absorbDroppedItems() }
             })
         }
         DispatchQueue.main.async { self.apply() }
@@ -85,7 +88,10 @@ final class MenuBar: NSObject {
                 expanded = true
                 showOrderHint()
             case true?:
-                break
+                // Collapsed with a known order: the first time, give Apple's items their default place.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    Task { @MainActor in await self.pinSystemItemsOnce() }
+                }
             }
         }
         separator.length = expanded ? NSStatusItem.variableLength : 10_000
@@ -159,15 +165,107 @@ final class MenuBar: NSObject {
     /// The tray as discovery sees it now (SPEC §2), located through our own windows' CG frames.
     private func currentTrayItems() -> [StatusWindow] {
         let windows = statusWindows()
-        func frame(of item: NSStatusItem) -> CGRect? {
-            let id = CGWindowID(clamping: item.button?.window?.windowNumber ?? 0)  // Int → UInt32 without trapping
-            return windows.first { $0.windowID == id }?.frame
-        }
+        func frame(of item: NSStatusItem) -> CGRect? { windows.first { $0.windowID == windowID(of: item) }?.frame }
         guard let c = frame(of: chevron), let s = frame(of: separator) else {
             log.error("own windows not found")
             return []
         }
-        return trayItems(in: windows, chevron: c, separator: s)
+        return axBacked(trayItems(in: windows, chevron: c, separator: s))
+    }
+
+    private func windowID(of item: NSStatusItem) -> CGWindowID {
+        CGWindowID(clamping: item.button?.window?.windowNumber ?? 0)  // Int → UInt32 without trapping
+    }
+
+    /// Opens a tray item's own menu or popover under the tray (SPEC §5): move it next to the chevron, press
+    /// it, wait until its menu closes, move it back left of its old right-hand neighbour (or of the
+    /// separator). If it does not move, reveal the whole tray for the click instead.
+    @MainActor
+    private func forwardClick(to item: StatusWindow) async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        let tray = currentTrayItems()
+        let index = tray.firstIndex { $0.windowID == item.windowID }
+        let neighbour = index.flatMap { tray.indices.contains($0 + 1) ? tray[$0 + 1].windowID : nil }
+        let baseline = menuWindows(of: item.pid)
+        if await moveStatusItem(item, nextTo: windowID(of: chevron), side: .left) {
+            await pressWhenOnScreen(item, baseline: baseline)
+            _ = await moveStatusItem(item, nextTo: neighbour ?? windowID(of: separator), side: .left)
+        } else {
+            log.error("move failed; revealing the tray for the click")
+            expanded = true
+            apply()
+            await pressWhenOnScreen(item, baseline: baseline)
+            expanded = false
+            apply()
+        }
+    }
+
+    /// Waits (≤ 1 s) for the item to be on screen, clicks it and waits until the menu it opened has closed.
+    /// A synthetic click, not SPEC's AXPress first: Telegram (Qt) ignores AXPress, and waiting 1.5 s for its
+    /// menu before falling back made the item sit by the chevron for 3 s (docs/FINDINGS.md).
+    @MainActor
+    private func pressWhenOnScreen(_ item: StatusWindow, baseline: Set<CGWindowID>) async {
+        var polls = 0
+        while polls < 50, !(frame(of: item.windowID).map(isOnScreen) ?? false) {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+            polls += 1
+        }
+        let current = StatusWindow(windowID: item.windowID, pid: item.pid, frame: frame(of: item.windowID) ?? item.frame,
+                                   onScreen: true)
+        await clickStatusItem(current, button: .left)
+        _ = await waitForMenuToClose(of: current, baseline: baseline)
+    }
+
+    /// Once per Mac (owner's change to SPEC §1, see docs/SPEC.md): Apple's own items start pinned right of the
+    /// chevron, everything else in the tray. Afterwards the owner moves them freely. Needs Accessibility,
+    /// as display copies (not AX-backed) cannot be moved; retried on later launches until all moved.
+    @MainActor
+    private func pinSystemItemsOnce() async {
+        let key = "systemItemsPinned"
+        guard !UserDefaults.standard.bool(forKey: key), !busy, !expanded, AXIsProcessTrusted() else { return }
+        let system = currentTrayItems().filter {
+            NSRunningApplication(processIdentifier: $0.pid)?.bundleIdentifier?.hasPrefix("com.apple.") == true
+        }
+        busy = true
+        defer { busy = false }
+        var moved = 0
+        for item in system.reversed() {  // each lands right of the chevron: rightmost first keeps the order
+            if await moveStatusItem(item, nextTo: windowID(of: chevron), side: .right) { moved += 1 }
+        }
+        log.info("pinned \(moved, privacy: .public)/\(system.count, privacy: .public) system items")
+        if moved == system.count { UserDefaults.standard.set(true, forKey: key) }
+    }
+
+    /// A panel cell dropped on the menu bar: pin the item right of the chevron.
+    @MainActor
+    private func pin(_ item: StatusWindow) async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        _ = await moveStatusItem(item, nextTo: windowID(of: chevron), side: .right)
+    }
+
+    /// Items the owner ⌘-dropped onto the chevron sit between separator and chevron: move them into the tray.
+    @MainActor
+    private func absorbDroppedItems() async {
+        guard !busy, !expanded else { return }
+        let windows = statusWindows()
+        guard let c = windows.first(where: { $0.windowID == windowID(of: chevron) })?.frame,
+              let s = windows.first(where: { $0.windowID == windowID(of: separator) })?.frame
+        else { return }
+        let dropped = axBacked(windows.filter {
+            $0.pid != getpid() && abs($0.frame.minY - c.minY) < 1 && $0.frame.height == c.height
+                && $0.frame.minX >= s.maxX - 1 && $0.frame.maxX <= c.minX + 1
+        })
+        guard !dropped.isEmpty else { return }
+        busy = true
+        defer { busy = false }
+        for item in dropped {
+            log.info("dropped on the chevron: \(item.windowID, privacy: .public) → tray")
+            _ = await moveStatusItem(item, nextTo: windowID(of: separator), side: .left)
+        }
     }
 
     @objc private func toggleLaunchAtLogin() {

@@ -9,9 +9,7 @@ import AppKit
 func captureImages(of windows: [StatusWindow]) -> [CGWindowID: CGImage] {
     var images: [CGWindowID: CGImage] = [:]
     for window in windows {
-        // The array holds raw window ids, not CFNumbers, hence no callbacks.
-        var id = UnsafeRawPointer(bitPattern: UInt(window.windowID))
-        guard let array = CFArrayCreate(kCFAllocatorDefault, &id, 1, nil),
+        guard let array = windowArray([window.windowID]),
               let image = CGImage(windowListFromArrayScreenBounds: .null, windowArray: array,
                                   imageOption: [.boundsIgnoreFraming, .bestResolution])
         else { continue }
@@ -48,7 +46,7 @@ func captureCommand(to directory: String) -> Int32 {
         FileHandle.standardError.write(Data("Tray is not running, or no Accessibility access to find it\n".utf8))
         return 1
     }
-    let items = trayItems(in: windows, chevron: layout.chevron, separator: layout.separator)
+    let items = axBacked(trayItems(in: windows, chevron: layout.chevron.frame, separator: layout.separator.frame))
     let images = captureImages(of: items)
     let folder = URL(fileURLWithPath: directory, isDirectory: true)
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

@@ -24,9 +24,10 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 | Area | Path | Owns | Checks |
 | --- | --- | --- | --- |
 | Entry / CLI | `Sources/Tray/main.swift` | argument dispatch: no args = app mode, `--dump`, `--capture <dir>` | `swift test` |
-| Menu bar | `Sources/Tray/MenuBar.swift` | chevron + separator (collapse, arrange, order safety, first-launch positions), chevron menu, os.Logger | `log stream`, `--dump` |
+| Menu bar | `Sources/Tray/MenuBar.swift` | chevron + separator (collapse, arrange, order safety, first-launch positions, Apple items pinned once), click forwarding, drag & drop, chevron menu, os.Logger | `log stream`, `--dump` |
 | Panel | `Sources/Tray/Panel.swift` | floating panel (NSPanel + SwiftUI flow layout), 1 s live refresh, image cache, permission banner | `swift test`, owner's eyes |
-| Capture | `Sources/Tray/Capture.swift` | @2x images of status windows via CoreGraphics (not ScreenCaptureKit: see docs/FINDINGS.md), `--capture` PNGs | `swift test`, `--capture` |
+| Move / click | `Sources/Tray/Move.swift` | synthetic ⌘-drag moves (Ice's event-tap delivery), clicks, menu-close wait, `--move` | `--move`, owner's eyes |
+| Capture | `Sources/Tray/Capture.swift` | 2x (Retina) images of status windows via CoreGraphics (not ScreenCaptureKit: see docs/FINDINGS.md), `--capture` PNGs | `swift test`, `--capture` |
 | Discovery | `Sources/Tray/Discovery.swift` | status windows (CGWindowList, layer 25), tray selection, AX `AXExtrasMenuBar` match, `--dump` JSON | `swift test`, `--dump` |
 | Tests | `Tests/TrayTests/` | pure logic (AX matching, tray selection, flow layout) | `swift test` |
 | Bundle + signing | [scripts/build.sh](scripts/build.sh) | release build, `build/Tray.app`, Info.plist, codesign | run it |
@@ -35,9 +36,10 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 | Platform findings | [docs/FINDINGS.md](docs/FINDINGS.md) | verified macOS behavior, open questions | `--dump` |
 | Review rules | [REVIEW.md](REVIEW.md) | `/dual-review` instructions | — |
 
-Not implemented yet (see SPEC delivery plan): click forwarding + `--move` and the cell context menu (§5;
-until then clicking a cell reveals the tray in the menu bar), onboarding (§7), refresh-interval and
-panel-width settings (constants in `Panel.swift`).
+Owner's changes to the brief are listed at the end of [docs/SPEC.md](docs/SPEC.md). Gestures (replacing SPEC §5's cell context menu): drag a panel cell onto the menu bar
+to pin it; ⌘-drop a menu bar item onto the chevron to put it in the tray.
+Not implemented yet: right-click forwarding (§5), onboarding (§7), refresh-interval and panel-width
+settings (constants in `Panel.swift`).
 
 ## Working rules
 - Inspect before editing; preserve unrelated and untracked work.

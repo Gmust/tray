@@ -21,8 +21,8 @@ final class DiscoveryTests: XCTestCase {
         let chevron = CGRect(x: 1300, y: 0, width: 36, height: 36)
         let separator = CGRect(x: 1300 - 10_000, y: 0, width: 10_000, height: 36)  // collapsed
         let windows = [
-            window(1, -8800, 0, 40, 36),     // the app's original window: not drawn under a same-frame copy
-            window(8, -8800, 0, 40, 36),     // this display's copy of 1: same pid and frame, newer id → kept
+            window(1, -8800, 0, 40, 36),     // tray: the app's original window → kept
+            window(8, -8800, 0, 40, 36),     // a display's copy of 1: same pid and frame, newer id
             window(2, -8760, 0, 47, 36),     // tray
             window(3, -8700, -62, 40, 24),   // left of the separator, but the other display's row
             window(4, 0, 0, 16, 36),         // ghost at the origin: right of a collapsed separator
@@ -30,6 +30,6 @@ final class DiscoveryTests: XCTestCase {
             window(6, 1300, 0, 36, 36),      // the chevron
             window(7, 1336, 0, 32, 36),      // pinned
         ]
-        XCTAssertEqual(trayItems(in: windows, chevron: chevron, separator: separator).map(\.windowID), [8, 2])
+        XCTAssertEqual(trayItems(in: windows, chevron: chevron, separator: separator).map(\.windowID), [1, 2])
     }
 }
