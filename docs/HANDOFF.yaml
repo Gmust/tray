@@ -1,0 +1,21 @@
+goal: Tray phase 1 of docs/SPEC.md delivery plan — package, signed bundle, --dump
+done:
+  - AGENTS.md CLAUDE.md REVIEW.md docs/SPEC.md .github/workflows/ci.yml — agent workflow set up (Claude only, /dual-review)
+  - Package.swift Sources/Tray/ Tests/TrayTests/ — swift test passes (DiscoveryTests.testMatchIndex), no warnings
+  - scripts/build.sh — Tray.app signed with Apple Development, certificate-based DR (docs/FINDINGS.md)
+  - Sources/Tray/Discovery.swift matchIndex — AX match by center; --dump matched 19/19 built-in menu bar items
+wip: null
+blocked: null
+next: phase 2 (SPEC §1, §6) — chevron + separator, display-filtered tray discovery, --dump separator/inTray, os.Logger; ask owner before first app-mode launch (it changes the live menu bar)
+decisions:
+  - gate = `swift test`; CI = same on macos-15, push + PR
+  - --dump stays raw (all layer-25 windows); display/height filtering belongs to tray discovery (phase 2)
+  - --dump omits separator/inTray until app mode creates a separator (phase 2)
+  - AX ↔ window match = same center within 1pt (frames differ in size per app)
+  - no os.Logger yet: nothing logs before app mode
+  - platform facts and open questions live in docs/FINDINGS.md, not here
+refs: docs/SPEC.md, docs/FINDINGS.md, AGENTS.md#checks
+checks:
+  gate: swift test
+  last: pass 2026-10-30 (local, Swift 6.2 toolchain); CI not run — no remote yet
+platforms: macOS 15.7.9 arm64 (owner Mac, notch + external display); macOS 14 not exercised
