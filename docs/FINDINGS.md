@@ -105,7 +105,8 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
   log "panel opened: 31/33 items", owner screenshot, 2026-10-30.
 - **Synthetic clicks must land before the cursor is restored.** Telegram (Qt) ignored AXPress; the
   fallback click went nowhere while the cursor was warped back right after posting. Clicks now wait
-  for a session tap to see each event (Ice's `postEventAndWaitToReceive`). Fix unverified. Evidence:
+  for a session tap to see each event (Ice's `postEventAndWaitToReceive`); Telegram's menu now opens
+  (owner confirmed). Evidence:
   Tray log "AXPress opened nothing for 319; clicking" → item moved back after 1.5 s, 2026-10-30.
 
 - **Click, not AXPress, for Telegram.** AXPress on Telegram's item (Qt) opened nothing; waiting 1.5 s
@@ -118,8 +119,8 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
   10 s, macOS recreated it at 326 each time. Tray leaves it alone and keeps it out of the panel. Evidence:
   Tray log 16:05:05–16:05:15, `defaults read com.apple.controlcenter`, 2026-10-30.
 - **Stats' popover was not seen as "opened"** (layer 0, only layers ≠ 0/25 counted), so its item went
-  back after 1.5 s. Normal-layer windows hanging from the menu bar now count. Fix unverified. Evidence:
-  Tray log "menu of 77831: nothing opened", 2026-10-30.
+  back after 1.5 s. Normal-layer windows hanging from the menu bar now count; the owner confirmed it
+  works. Evidence: Tray log "menu of 77831: nothing opened", owner report, 2026-10-30.
 
 - **Live Screen Recording check.** Readable `kCGWindowName` on another app's status window (Ice's check)
   gave false from Claude Code's shell (no grant) and true from Tray.app (granted), while
