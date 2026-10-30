@@ -1,4 +1,4 @@
-goal: Tray: SPEC complete; polish from owner feedback; branch phase-6-onboarding
+goal: Tray: SPEC complete; polish from owner feedback; on master (phase branches merged)
 done:
   - 604abdc phase 1 — package, signed bundle, --dump (AX match 19/19 built-in items)
   - 6c04035 phase 2 — hiding, chevron menu, logger
@@ -10,7 +10,7 @@ done:
   - phase 2 on Mac: seeding 0/1 → chevron+separator rightmost; collapse hides 17 items on both displays; AXPress toggle both ways; quit restores exact positions (--dump)
 wip: null
 blocked: null
-next: owner checks right-click on a cell, Refresh Interval submenu, Stats popover; merge phase branches into master if owner agrees
+next: owner checks right-click on a cell, Refresh Interval submenu, Stats popover
 decisions:
   - gate = `swift test`; CI = same on macos-15, push + PR
   - --dump stays raw (all layer-25 windows); display/height filtering belongs to tray discovery (phase 2)
