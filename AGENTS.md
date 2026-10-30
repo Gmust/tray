@@ -23,17 +23,18 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 ## Code and document map
 | Area | Path | Owns | Checks |
 | --- | --- | --- | --- |
-| Entry / CLI | `Sources/Tray/main.swift` | argument dispatch (`--dump`; app mode not yet) | `swift test` |
-| Discovery | `Sources/Tray/Discovery.swift` | status windows (CGWindowList, layer 25), AX `AXExtrasMenuBar` frame match, `--dump` JSON | `swift test`, `--dump` |
-| Tests | `Tests/TrayTests/` | pure logic (frame matching) | `swift test` |
+| Entry / CLI | `Sources/Tray/main.swift` | argument dispatch: no args = app mode, `--dump` | `swift test` |
+| Menu bar | `Sources/Tray/MenuBar.swift` | chevron + separator (collapse, arrange, order safety, first-launch positions), chevron menu, os.Logger | `log stream`, `--dump` |
+| Discovery | `Sources/Tray/Discovery.swift` | status windows (CGWindowList, layer 25), tray selection, AX `AXExtrasMenuBar` match, `--dump` JSON | `swift test`, `--dump` |
+| Tests | `Tests/TrayTests/` | pure logic (AX matching, tray selection) | `swift test` |
 | Bundle + signing | [scripts/build.sh](scripts/build.sh) | release build, `build/Tray.app`, Info.plist, codesign | run it |
 | CI | [.github/workflows/ci.yml](.github/workflows/ci.yml) | runs the gate on macos-15 | — |
 | Requirements + UI design | [docs/SPEC.md](docs/SPEC.md) | what to build | — |
 | Platform findings | [docs/FINDINGS.md](docs/FINDINGS.md) | verified macOS behavior, open questions | `--dump` |
 | Review rules | [REVIEW.md](REVIEW.md) | `/dual-review` instructions | — |
 
-Not implemented yet (see SPEC delivery plan): hiding (§1), live capture + `--capture` (§3), panel (§4),
-click forwarding + `--move` (§5), chevron menu (§6), onboarding (§7), os.Logger.
+Not implemented yet (see SPEC delivery plan): live capture + `--capture` (§3), panel (§4; until then a
+left click on the chevron toggles the tray), click forwarding + `--move` (§5), onboarding (§7).
 
 ## Working rules
 - Inspect before editing; preserve unrelated and untracked work.
@@ -46,6 +47,8 @@ click forwarding + `--move` (§5), chevron menu (§6), onboarding (§7), os.Logg
   the primary screen's height. Convert in one place, never mix.
 - Every status item has one window per display's menu bar, and layer 25 also holds non-status windows
   (overlays, popups). Filter by display and menu bar height, never by layer alone.
+- Status item frames are transitional while the menu bar relayouts. Never collapse, move or click on a
+  single reading of them: wait until placed, and confirm a surprising state after a short delay.
 - AX calls into other apps: set a messaging timeout and handle failure.
 - Logger interpolations need `privacy: .public`, or `log stream` shows `<private>`.
 - When review or an incident misses a bug, add what the reviewer lacked: a rule here or in REVIEW.md, or a check.
@@ -75,7 +78,10 @@ Not part of the gate:
   `open -n -W --stdout /tmp/tray-dump.json build/Tray.app --args --dump`.
   Running `build/Tray.app/Contents/MacOS/Tray --dump` directly works too, but TCC then checks the
   terminal's grants, not Tray's.
-- Logs (once app mode exists): `log stream --level debug --predicate 'subsystem == "dev.illia.tray"'`.
+- App mode: `open build/Tray.app` (changes the live menu bar: ask first). Quit: chevron right-click → «Выйти»,
+  or `pkill -x Tray`; quitting always brings every item back.
+- Logs: `/usr/bin/log stream --level debug --predicate 'subsystem == "dev.illia.tray"'`. Use the full path:
+  in zsh, `log` is a shell builtin.
 
 ## Handoff
 `docs/HANDOFF.yaml` is the state that survives a context reset. Update it after every verified step and

@@ -1,21 +1,21 @@
-goal: Tray phase 1 of docs/SPEC.md delivery plan — package, signed bundle, --dump
+goal: Tray phase 2 of docs/SPEC.md delivery plan — hiding (§1), chevron menu (§6), os.Logger; branch phase-2-hiding
 done:
-  - AGENTS.md CLAUDE.md REVIEW.md docs/SPEC.md .github/workflows/ci.yml — agent workflow set up (Claude only, /dual-review)
-  - Package.swift Sources/Tray/ Tests/TrayTests/ — swift test passes (DiscoveryTests.testMatchIndex), no warnings
-  - scripts/build.sh — Tray.app signed with Apple Development, certificate-based DR (docs/FINDINGS.md)
-  - Sources/Tray/Discovery.swift matchIndex — AX match by center; --dump matched 19/19 built-in menu bar items
-wip: null
+  - 604abdc phase 1 — package, signed bundle, --dump (AX match 19/19 built-in items)
+  - Preferred Position semantics — distance from screen right edge to item maxX; 6/6 Apple items exact (docs/FINDINGS.md)
+  - phase 2 on Mac: seeding 0/1 → chevron+separator rightmost; collapse hides 17 items on both displays; AXPress toggle both ways; quit restores exact positions (--dump)
+wip: phase 2 uncommitted on branch phase-2-hiding; untested by hand: right-click menu, «Обновить» log, launch at login, order hint popover (real ⌘-drag)
 blocked: null
-next: phase 2 (SPEC §1, §6) — chevron + separator, display-filtered tray discovery, --dump separator/inTray, os.Logger; ask owner before first app-mode launch (it changes the live menu bar)
+next: owner asked for the panel — phase 3 (Screen Recording + capture) + phase 4 (panel); left click on the chevron becomes «open panel»
 decisions:
   - gate = `swift test`; CI = same on macos-15, push + PR
   - --dump stays raw (all layer-25 windows); display/height filtering belongs to tray discovery (phase 2)
-  - --dump omits separator/inTray until app mode creates a separator (phase 2)
+  - --dump finds Tray's chevron/separator via AX identifiers; inTray needs a running Tray + AX
+  - order check waits for placement + confirms a wrong order after 0.5 s (false positives otherwise)
+  - duplicate same-frame windows per item: keep lower windowID
   - AX ↔ window match = same center within 1pt (frames differ in size per app)
-  - no os.Logger yet: nothing logs before app mode
   - platform facts and open questions live in docs/FINDINGS.md, not here
 refs: docs/SPEC.md, docs/FINDINGS.md, AGENTS.md#checks
 checks:
   gate: swift test
-  last: pass 2026-10-30 (local, Swift 6.2 toolchain); CI not run — no remote yet
+  last: pass 2026-10-30, 2 tests (local, Swift 6.2 toolchain); CI not run — no remote yet
 platforms: macOS 15.7.9 arm64 (owner Mac, notch + external display); macOS 14 not exercised

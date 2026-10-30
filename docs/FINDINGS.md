@@ -33,6 +33,29 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
   path). `open -n -W --stdout <file> build/Tray.app --args --dump` checks Tray.app's own grants. The
   owner's Accessibility grant landed on Claude Code; Tray.app is still denied. Evidence: tccd log +
   `accessibility` field, 2026-10-30.
+- **"NSStatusItem Preferred Position <autosaveName>" = distance in points from the screen's right edge to
+  the item's right edge (maxX)**, stored in the owning app's defaults domain. Six ControlCenter /
+  Spotlight / TextInputMenuAgent values matched the external-display window positions exactly (Spotlight:
+  3390 − 3225 = 165). The clock has no key (fixed); Control Center's value (131) equals the clock's width.
+  Values update only when an item moves: Maccy's (426) was stale. Evidence: `defaults read` vs `--dump`,
+  2026-10-30. Seeding 0 (chevron) / 1 (separator) before creating the items works: on first launch they
+  landed rightmost, directly left of Control Center, separator left of chevron, on both displays.
+  AppKit leaves the seeded values as they are until the user drags an item. Evidence: `--dump` + `defaults
+  read dev.illia.tray`, 2026-10-30.
+- **New status item windows start unplaced.** For ~100 ms after creation our windows sit outside every
+  screen (below it at y=-36, or past its right edge at x=3390), sometimes already resized. During
+  relayout, frames pass through wrong orders (separator 5016pt wide at its old origin). Never act on a
+  single reading: wait until the chevron is inside a screen, and re-check a wrong order after 0.5 s.
+  Evidence: launch logs (two false "wrong order" expansions before the fix), 2026-10-30.
+- **Length 10_000 is clamped to 5016pt.** Still enough: collapsed, every tray item sat 2–4.5k pt off-screen
+  on both displays (e.g. x −2535…−1861 on the external one). Evidence: `--dump`, 2026-10-30.
+- **Duplicate windows in the active row.** The active display's row holds two windows per item with
+  identical frames (an old low windowID and a newer copy); both match the same AX element. `trayItems`
+  keeps the lower windowID. Which one renders for capture: open (phase 3). Evidence: `--dump`, 2026-10-30.
+- **Quitting restores the menu bar.** After `pkill -x Tray`, all 19 items were back at their exact
+  pre-launch x positions. Evidence: `--dump` before launch vs after quit, 2026-10-30.
+- **Rebuilding over a running Tray.** `scripts/build.sh` now copies then renames, so the running process
+  keeps its inode; Tray survived a rebuild while running. Evidence: same pid before/after, 2026-10-30.
 - **Signing.** Apple Development signing gives a certificate-based designated requirement
   (`identifier "dev.illia.tray" and anchor apple generic and certificate leaf[subject.CN] = …`), so
   grants should survive rebuilds. Evidence: `codesign -d -r-`, 2026-10-30. Survival across a rebuild
@@ -40,5 +63,5 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
 
 ## Open
 - Does AX follow the display with the active menu bar, together with the "original" windows?
-- "NSStatusItem Preferred Position <autosaveName>" seeding semantics (phase 2).
+- Which of an item's duplicate windows renders correctly for ScreenCaptureKit (phase 3)?
 - Do Stats items keep redrawing while pushed off-screen (phase 3)?

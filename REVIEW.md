@@ -5,6 +5,7 @@
   back after a temporary move, a crash or hang while items are pushed off-screen.
 - Coordinate spaces mixed: CG/AX top-left frames used with NSScreen/NSWindow bottom-left frames unconverted.
 - Status windows picked by layer alone: wrong display's copy, ghost copies, or overlay/popup windows.
+- Acting on a single reading of status item frames (collapse, move, click) without waiting for placement.
 - Synthetic CGEvents posted at a position or window that was not verified first.
 - Bundle id or signing changes that silently revoke Accessibility / Screen Recording grants.
 - Capture timers or AX polling still running after the panel closes.

@@ -9,7 +9,9 @@ BIN="$(swift build -c release --show-bin-path)/Tray"
 APP=build/Tray.app
 
 mkdir -p "$APP/Contents/MacOS"
-cp "$BIN" "$APP/Contents/MacOS/Tray"
+# Copy + rename: a running Tray keeps its old inode instead of being killed for modified code pages.
+cp "$BIN" "$APP/Contents/MacOS/Tray.new"
+mv -f "$APP/Contents/MacOS/Tray.new" "$APP/Contents/MacOS/Tray"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

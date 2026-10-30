@@ -13,4 +13,23 @@ final class DiscoveryTests: XCTestCase {
         XCTAssertNil(matchIndex(for: CGRect(x: 2930, y: -62, width: 40, height: 24), in: ax), "other display's copy")
         XCTAssertNil(matchIndex(for: .zero, in: []))
     }
+
+    func testTrayItems() {
+        func window(_ id: CGWindowID, _ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> StatusWindow {
+            StatusWindow(windowID: id, pid: 1, frame: CGRect(x: x, y: y, width: w, height: h), onScreen: false)
+        }
+        let chevron = CGRect(x: 1300, y: 0, width: 36, height: 36)
+        let separator = CGRect(x: 1300 - 10_000, y: 0, width: 10_000, height: 36)  // collapsed
+        let windows = [
+            window(1, -8800, 0, 40, 36),     // tray, built-in row
+            window(2, -8760, 0, 47, 36),     // tray
+            window(3, -8700, -62, 40, 24),   // left of the separator, but the other display's row
+            window(4, 0, 0, 16, 36),         // ghost at the origin: right of a collapsed separator
+            window(5, separator.minX, 0, separator.width, 36),  // the separator itself
+            window(6, 1300, 0, 36, 36),      // the chevron
+            window(7, 1336, 0, 32, 36),      // pinned
+            window(8, -8800, 0, 40, 36),     // per-display copy of 1: same pid and frame, newer id
+        ]
+        XCTAssertEqual(trayItems(in: windows, chevron: chevron, separator: separator).map(\.windowID), [1, 2])
+    }
 }
