@@ -11,7 +11,7 @@ done:
   - phase 2 on Mac: seeding 0/1 → chevron+separator rightmost; collapse hides 17 items on both displays; AXPress toggle both ways; quit restores exact positions (--dump)
 wip: README.md (user docs) written, uncommitted; validator ok
 blocked: null
-next: none open from SPEC; ideas: push to GitHub so CI runs, test on macOS 14, Developer ID + notarization to share Tray
+next: optional: test on macOS 14; Developer ID + notarization only if Tray is ever shared as an app
 decisions:
   - gate = `swift test`; CI = same on macos-15, push + PR
   - --dump stays raw (all layer-25 windows); display/height filtering belongs to tray discovery (phase 2)
@@ -28,5 +28,5 @@ decisions:
 refs: docs/SPEC.md, docs/FINDINGS.md, AGENTS.md#checks
 checks:
   gate: swift test
-  last: pass 2026-10-30, 4 tests (local, Swift 6.2 toolchain); CI not run — no remote yet
+  last: pass 2026-10-30, 4 tests local; CI pass on GitHub (run 41090194017, macos-15, 46 s)
 platforms: macOS 15.7.9 arm64 (owner Mac, notch + external display); macOS 14 not exercised
