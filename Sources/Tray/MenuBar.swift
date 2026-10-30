@@ -12,6 +12,10 @@ final class MenuBar: NSObject {
     private let separator: NSStatusItem
     private var expanded = false
     private var observers: [NSObjectProtocol] = []
+    // Until click forwarding exists (SPEC §5, delivery plan phase 5), clicking a cell reveals the tray
+    // in the menu bar so the real item can be clicked there.
+    private lazy var panel = Panel(discover: { [unowned self] in self.currentTrayItems() },
+                                   onClick: { [unowned self] _ in self.expanded = true; self.apply() })
 
     override init() {
         Self.seedPositions()
@@ -108,9 +112,15 @@ final class MenuBar: NSObject {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
-    // Left click toggles the tray until the panel exists (SPEC delivery plan, phase 4). Right click: menu.
+    // Left click: the panel, or back to collapsed when the tray is revealed. Right click: menu.
     @objc private func chevronClicked() {
-        guard NSApp.currentEvent?.type == .rightMouseUp else { return toggleArrange() }
+        guard NSApp.currentEvent?.type == .rightMouseUp else {
+            if expanded { return toggleArrange() }
+            if panel.isOpen { return panel.close() }
+            if let button = chevron.button { panel.open(below: button) }
+            return
+        }
+        panel.close()
         chevron.menu = makeMenu()
         chevron.button?.performClick(nil)  // tracks the menu synchronously
         chevron.menu = nil
@@ -141,14 +151,23 @@ final class MenuBar: NSObject {
     /// Re-applies the state and logs what discovery sees as the tray.
     @objc private func refresh() {
         apply()
-        let windows = statusWindows()
-        func own(_ item: NSStatusItem) -> CGRect? {
-            windows.first { $0.windowID == CGWindowID(item.button?.window?.windowNumber ?? 0) }?.frame
-        }
-        guard let c = own(chevron), let s = own(separator) else { return log.error("own windows not found") }
-        let tray = trayItems(in: windows, chevron: c, separator: s)
+        let tray = currentTrayItems()
         let names = tray.map { NSRunningApplication(processIdentifier: $0.pid)?.localizedName ?? "pid \($0.pid)" }
         log.info("tray: \(tray.count, privacy: .public) items: \(names.joined(separator: ", "), privacy: .public)")
+    }
+
+    /// The tray as discovery sees it now (SPEC §2), located through our own windows' CG frames.
+    private func currentTrayItems() -> [StatusWindow] {
+        let windows = statusWindows()
+        func frame(of item: NSStatusItem) -> CGRect? {
+            let id = CGWindowID(clamping: item.button?.window?.windowNumber ?? 0)  // Int → UInt32 without trapping
+            return windows.first { $0.windowID == id }?.frame
+        }
+        guard let c = frame(of: chevron), let s = frame(of: separator) else {
+            log.error("own windows not found")
+            return []
+        }
+        return trayItems(in: windows, chevron: c, separator: s)
     }
 
     @objc private func toggleLaunchAtLogin() {

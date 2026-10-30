@@ -1,15 +1,18 @@
 import AppKit
 
-switch CommandLine.arguments.dropFirst().first {
-case nil:
+let arguments = Array(CommandLine.arguments.dropFirst())
+switch (arguments.first, arguments.count) {
+case (nil, _):
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)  // also when run as a bare binary, outside Tray.app
     let menuBar = MenuBar()
     app.run()
     withExtendedLifetime(menuBar) {}
-case "--dump":
+case ("--dump", 1):
     dump()
+case ("--capture", 2):
+    exit(captureCommand(to: arguments[1]))
 default:
-    FileHandle.standardError.write(Data("usage: Tray [--dump]\n".utf8))
+    FileHandle.standardError.write(Data("usage: Tray [--dump | --capture <dir>]\n".utf8))
     exit(64)
 }

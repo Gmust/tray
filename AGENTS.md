@@ -23,18 +23,21 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 ## Code and document map
 | Area | Path | Owns | Checks |
 | --- | --- | --- | --- |
-| Entry / CLI | `Sources/Tray/main.swift` | argument dispatch: no args = app mode, `--dump` | `swift test` |
+| Entry / CLI | `Sources/Tray/main.swift` | argument dispatch: no args = app mode, `--dump`, `--capture <dir>` | `swift test` |
 | Menu bar | `Sources/Tray/MenuBar.swift` | chevron + separator (collapse, arrange, order safety, first-launch positions), chevron menu, os.Logger | `log stream`, `--dump` |
+| Panel | `Sources/Tray/Panel.swift` | floating panel (NSPanel + SwiftUI flow layout), 1 s live refresh, image cache, permission banner | `swift test`, owner's eyes |
+| Capture | `Sources/Tray/Capture.swift` | @2x images of status windows via CoreGraphics (not ScreenCaptureKit: see docs/FINDINGS.md), `--capture` PNGs | `swift test`, `--capture` |
 | Discovery | `Sources/Tray/Discovery.swift` | status windows (CGWindowList, layer 25), tray selection, AX `AXExtrasMenuBar` match, `--dump` JSON | `swift test`, `--dump` |
-| Tests | `Tests/TrayTests/` | pure logic (AX matching, tray selection) | `swift test` |
+| Tests | `Tests/TrayTests/` | pure logic (AX matching, tray selection, flow layout) | `swift test` |
 | Bundle + signing | [scripts/build.sh](scripts/build.sh) | release build, `build/Tray.app`, Info.plist, codesign | run it |
 | CI | [.github/workflows/ci.yml](.github/workflows/ci.yml) | runs the gate on macos-15 | — |
 | Requirements + UI design | [docs/SPEC.md](docs/SPEC.md) | what to build | — |
 | Platform findings | [docs/FINDINGS.md](docs/FINDINGS.md) | verified macOS behavior, open questions | `--dump` |
 | Review rules | [REVIEW.md](REVIEW.md) | `/dual-review` instructions | — |
 
-Not implemented yet (see SPEC delivery plan): live capture + `--capture` (§3), panel (§4; until then a
-left click on the chevron toggles the tray), click forwarding + `--move` (§5), onboarding (§7).
+Not implemented yet (see SPEC delivery plan): click forwarding + `--move` and the cell context menu (§5;
+until then clicking a cell reveals the tray in the menu bar), onboarding (§7), refresh-interval and
+panel-width settings (constants in `Panel.swift`).
 
 ## Working rules
 - Inspect before editing; preserve unrelated and untracked work.
@@ -75,7 +78,9 @@ Not part of the gate:
   identity (override: `TRAY_SIGN_IDENTITY`). Without one it signs ad-hoc with a loud warning; grants then
   reset on every build.
 - Diagnostics, with Tray.app's own TCC grants:
-  `open -n -W --stdout /tmp/tray-dump.json build/Tray.app --args --dump`.
+  `open -n -W --stdout /tmp/tray-dump.json build/Tray.app --args --dump`;
+  `open -n -W --stdout /tmp/tray-capture.txt build/Tray.app --args --capture /tmp/tray-capture`
+  (needs a running Tray and Screen Recording for Tray.app; without Accessibility it finds Tray's items by geometry).
   Running `build/Tray.app/Contents/MacOS/Tray --dump` directly works too, but TCC then checks the
   terminal's grants, not Tray's.
 - App mode: `open build/Tray.app` (changes the live menu bar: ask first). Quit: chevron right-click → «Выйти»,

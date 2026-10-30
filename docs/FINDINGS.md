@@ -49,19 +49,45 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
   Evidence: launch logs (two false "wrong order" expansions before the fix), 2026-10-30.
 - **Length 10_000 is clamped to 5016pt.** Still enough: collapsed, every tray item sat 2–4.5k pt off-screen
   on both displays (e.g. x −2535…−1861 on the external one). Evidence: `--dump`, 2026-10-30.
-- **Duplicate windows in the active row.** The active display's row holds two windows per item with
-  identical frames (an old low windowID and a newer copy); both match the same AX element. `trayItems`
-  keeps the lower windowID. Which one renders for capture: open (phase 3). Evidence: `--dump`, 2026-10-30.
+- **Duplicate windows: capture the copy, not the original.** When the built-in display has the active
+  menu bar, each item has two windows there with identical frames: the app's original (low windowID,
+  follows the active menu bar) over the display's own copy (newer windowID). A capture of the original
+  never gets a frame: replayd starts the SkyLight stream and reports "complete", then nothing, and no
+  consent alert is raised (0x1300a, Stats, at 14:42 and 15:15). Requests for the copies reached the
+  consent stage. With the external display active, its row holds only originals, and those captured
+  fine. `trayItems` keeps the higher windowID. Evidence: replayd log + Tray "still pending" log, 2026-10-30.
 - **Quitting restores the menu bar.** After `pkill -x Tray`, all 19 items were back at their exact
   pre-launch x positions. Evidence: `--dump` before launch vs after quit, 2026-10-30.
 - **Rebuilding over a running Tray.** `scripts/build.sh` now copies then renames, so the running process
   keeps its inode; Tray survived a rebuild while running. Evidence: same pid before/after, 2026-10-30.
+- **ScreenCaptureKit captures off-screen status items.** `SCContentFilter(desktopIndependentWindow:)` +
+  `SCScreenshotManager.captureImage` rendered all 17 tray items while they sat thousands of points
+  off-screen, including Stats' live values (CPU, RAM, sensor, network), ControlCenter items and the input
+  source. Evidence: owner's screenshot of the panel, 2026-10-30. Whether Stats keeps redrawing between
+  captures while off-screen is not yet confirmed.
+- **"Quit & Reopen" after a Screen Recording grant quit Tray without reopening it** (LSUIElement app
+  launched via `open`). Relaunch it by hand. Evidence: owner report, 2026-10-30.
+- **macOS 15 "bypass the system private window picker" alert.** Until the owner presses "Allow", every
+  `SCScreenshotManager.captureImage` request for a *window* raises its own alert (UserNotificationCenter,
+  layer 8) and blocks without returning or throwing; a *display* capture raised none. 17 parallel window
+  requests stacked 17 alerts. Alerts outlive Tray; killing UserNotificationCenter makes replayd re-post
+  every pending request (15 → 31 alerts). What clears them is answering each one. Fix: until one window
+  capture returns an image, one request per panel opening (`Sources/Tray/Capture.swift`). Evidence: replayd + Tray logs, alert window counts, owner
+  screenshots, 2026-10-30. Not yet observed: behavior after "Allow", and how long it lasts.
 - **Signing.** Apple Development signing gives a certificate-based designated requirement
   (`identifier "dev.illia.tray" and anchor apple generic and certificate leaf[subject.CN] = …`), so
   grants should survive rebuilds. Evidence: `codesign -d -r-`, 2026-10-30. Survival across a rebuild
   is not yet observed.
 
+- **Capture backend switched to CoreGraphics.** Ice (jordanbaird/Ice, `Ice/Utilities/ScreenCapture.swift`)
+  captures hidden items with `CGImage(windowListFromArrayScreenBounds:windowArray:imageOption:)`, with the
+  comment "ScreenCaptureKit doesn't support capturing composite images of offscreen menu bar items". Tray
+  now does the same, one window per call. On the owner's Mac (built-in display active, items ~4.4k pt
+  off-screen) all 17 items came back live, with no consent alert. Panel still captures one item until
+  real pixels come back. Evidence: Ice source + owner screenshot, 2026-10-30.
+- **Stats keeps redrawing while off-screen.** Across the owner's panel screenshots the off-screen Stats
+  items changed: CPU 33% → 38% → 28%, sensor 66° → 50°, network rates. Evidence: owner screenshots,
+  2026-10-30.
+
 ## Open
 - Does AX follow the display with the active menu bar, together with the "original" windows?
-- Which of an item's duplicate windows renders correctly for ScreenCaptureKit (phase 3)?
-- Do Stats items keep redrawing while pushed off-screen (phase 3)?

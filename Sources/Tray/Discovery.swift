@@ -29,14 +29,15 @@ func statusWindows() -> [StatusWindow] {
 
 /// Tray items: windows in the chevron's menu bar row (same y and height, so same display) that end left
 /// of the separator. Keeps the input order. Our own windows never qualify: the separator does not end
-/// left of itself, and the chevron is right of it. The active row holds two windows per item with the
-/// same frame (original + per-display copy); the older one (lower windowID) is kept.
+/// left of itself, and the chevron is right of it. A display can hold two windows per item with the same
+/// frame: the app's original, which follows the active menu bar, over that display's own copy. The copy
+/// (higher windowID) is kept: the original is not drawn there, so a capture of it never gets a frame.
 func trayItems(in windows: [StatusWindow], chevron: CGRect, separator: CGRect) -> [StatusWindow] {
     let row = windows.filter {
         abs($0.frame.minY - chevron.minY) < 1 && abs($0.frame.height - chevron.height) < 1
             && $0.frame.maxX <= separator.minX
     }
-    return row.filter { w in !row.contains { $0.pid == w.pid && $0.frame == w.frame && $0.windowID < w.windowID } }
+    return row.filter { w in !row.contains { $0.pid == w.pid && $0.frame == w.frame && $0.windowID > w.windowID } }
 }
 
 /// A child of an app's AXExtrasMenuBar. `frame` is global, top-left origin.
@@ -83,6 +84,30 @@ func matchIndex(for frame: CGRect, in candidates: [CGRect]) -> Int? {
     return best
 }
 
+/// Frames of the running Tray app's chevron and separator, seen from another process (`--dump`,
+/// `--capture`): its windows whose AX element carries the identifier MenuBar sets; without AX access,
+/// the collapsed layout's geometry.
+func runningTrayLayout(in windows: [StatusWindow]) -> (chevron: CGRect, separator: CGRect)? {
+    guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.illia.tray")
+        .first(where: { $0.processIdentifier != getpid() })?.processIdentifier
+    else { return nil }
+    let ax = axItems(pid: pid)
+    func frame(_ identifier: String) -> CGRect? {
+        windows.first { window in
+            window.pid == pid && matchIndex(for: window.frame, in: ax.map(\.frame)).map { ax[$0].identifier } == identifier
+        }?.frame
+    }
+    if let chevron = frame("chevron"), let separator = frame("separator") { return (chevron, separator) }
+    // Without AX: a collapsed separator is the only window this wide; the chevron starts where it ends.
+    let own = windows.filter { $0.pid == pid }
+    guard let separator = own.first(where: { $0.frame.width > 1_000 })?.frame,
+          let chevron = own.first(where: {
+              abs($0.frame.minX - separator.maxX) < 1 && abs($0.frame.minY - separator.minY) < 1 && $0.frame.height == separator.height
+          })?.frame
+    else { return nil }
+    return (chevron, separator)
+}
+
 /// `--dump`: every status item window plus its matched AX element, as JSON on stdout.
 /// `chevron`, `separator` and `inTray` need a running Tray and AX access (to find its items by identifier).
 func dump() {
@@ -113,14 +138,8 @@ func dump() {
         return matchIndex(for: window.frame, in: candidates.map(\.frame)).map { candidates[$0] }
     }
 
-    // The running Tray app's own items, found through the AX identifiers MenuBar sets.
-    let trayPID = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.illia.tray")
-        .first { $0.processIdentifier != getpid() }?.processIdentifier
-    func own(_ identifier: String) -> CGRect? {
-        windows.first { $0.pid == trayPID && ax(for: $0)?.identifier == identifier }?.frame
-    }
-    let chevron = own("chevron"), separator = own("separator")
-    let tray = chevron.flatMap { c in separator.map { s in Set(trayItems(in: windows, chevron: c, separator: s).map(\.windowID)) } }
+    let layout = runningTrayLayout(in: windows)
+    let tray = layout.map { Set(trayItems(in: windows, chevron: $0.chevron, separator: $0.separator).map(\.windowID)) }
 
     let items = windows.map { window -> Entry in
         let app = NSRunningApplication(processIdentifier: window.pid)
@@ -133,7 +152,7 @@ func dump() {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     let output = Output(accessibility: AXIsProcessTrusted(), screenRecording: CGPreflightScreenCaptureAccess(),
-                        chevron: chevron, separator: separator, items: items)
+                        chevron: layout?.chevron, separator: layout?.separator, items: items)
     // Encoding plain structs of strings and numbers cannot fail.
     FileHandle.standardOutput.write(try! encoder.encode(output))
     FileHandle.standardOutput.write(Data("\n".utf8))
