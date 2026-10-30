@@ -9,7 +9,7 @@ done:
   - 3e3928d phases 3+4 — panel with live CG captures: 17/17 items live, Stats updates off-screen, ≤1 consent alert (owner screenshots)
   - Preferred Position semantics — distance from screen right edge to item maxX; 6/6 Apple items exact (docs/FINDINGS.md)
   - phase 2 on Mac: seeding 0/1 → chevron+separator rightmost; collapse hides 17 items on both displays; AXPress toggle both ways; quit restores exact positions (--dump)
-wip: null
+wip: README.md (user docs) written, uncommitted; validator ok
 blocked: null
 next: none open from SPEC; ideas: push to GitHub so CI runs, test on macOS 14, Developer ID + notarization to share Tray
 decisions:
@@ -18,6 +18,7 @@ decisions:
   - --dump finds Tray's chevron/separator via AX identifiers; inTray needs a running Tray + AX
   - order check waits for placement + confirms a wrong order after 0.5 s (false positives otherwise)
   - duplicate same-frame windows per item: keep higher windowID — original gets no frames (replayd log)
+  - personal use only, no LICENSE; if the repo is ever published, add GPL-3.0 first (Move.swift follows Ice, GPL-3.0)
   - owner changes to the brief live at the end of docs/SPEC.md (Apple items pinned once, CG capture, click-first, drag&drop, indicator)
   - click = synthetic click first (AXPress dropped: Qt ignores it) — deviation from SPEC §5
   - capture via CGImage(windowListFromArrayScreenBounds:) like Ice, not SPEC's SCScreenshotManager — SCK gets no frames off-screen (owner to confirm deviation)

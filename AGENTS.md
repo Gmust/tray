@@ -36,6 +36,7 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 | CI | [.github/workflows/ci.yml](.github/workflows/ci.yml) | runs the gate on macos-15 | — |
 | Requirements + UI design | [docs/SPEC.md](docs/SPEC.md) | what to build | — |
 | Platform findings | [docs/FINDINGS.md](docs/FINDINGS.md) | verified macOS behavior, open questions | `--dump` |
+| User docs | [README.md](README.md) | install, permissions, gestures, troubleshooting | keep in step with UI changes |
 | Review rules | [REVIEW.md](REVIEW.md) | `/dual-review` instructions | — |
 
 Owner's changes to the brief are listed at the end of [docs/SPEC.md](docs/SPEC.md). Gestures (replacing SPEC §5's cell context menu): drag a panel cell onto the menu bar
