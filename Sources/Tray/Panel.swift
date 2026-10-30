@@ -1,8 +1,17 @@
 import AppKit
 import SwiftUI
 
-private let maxPanelWidth: CGFloat = 360
-private let refreshInterval: TimeInterval = 1
+/// SPEC §4 setting: `defaults write dev.illia.tray panelMaxWidth <points>` (200–800, default 360).
+private var maxPanelWidth: CGFloat {
+    let width = UserDefaults.standard.double(forKey: "panelMaxWidth")
+    return width > 0 ? min(max(width, 200), 800) : 360
+}
+
+/// SPEC §3 setting, chosen in the chevron menu (0.5–3 s, default 1 s).
+var refreshInterval: TimeInterval {
+    let interval = UserDefaults.standard.double(forKey: "refreshInterval")
+    return interval > 0 ? min(max(interval, 0.5), 3) : 1
+}
 
 /// Origins for items of `sizes`, left to right, wrapping before `maxWidth`, plus the total size.
 /// An item wider than `maxWidth` gets a row of its own.
@@ -50,8 +59,12 @@ struct PanelCell: Identifiable {
 struct PanelView: View {
     let cells: [PanelCell]
     let needsScreenRecording: Bool
-    let onClick: (CGWindowID) -> Void
-    let onDragEnd: (CGWindowID) -> Void
+    let onClick: (CGWindowID, CGMouseButton) -> Void
+    /// A cell dropped: on another cell (`target`, before or after it) or elsewhere (nil).
+    let onDragEnd: (CGWindowID, (id: CGWindowID, side: Side)?) -> Void
+    @State private var cellFrames: [CGWindowID: CGRect] = [:]
+    /// The cell being dragged, how far, and where the cursor is (grid coordinates).
+    @State private var drag: (id: CGWindowID, offset: CGSize, location: CGPoint)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -68,36 +81,102 @@ struct PanelView: View {
             }
             FlowLayout(maxWidth: maxPanelWidth - 16, spacing: 4) {
                 ForEach(cells) { cell in
-                    CellView(cell: cell, action: { onClick(cell.id) }, dragEnded: { onDragEnd(cell.id) })
+                    let dragged = drag?.id == cell.id
+                    CellView(cell: cell, dragged: dragged, insertion: insertion(at: cell.id),
+                             action: { onClick(cell.id, $0) },
+                             dragChanged: { drag = (cell.id, $0, $1) },
+                             dragEnded: { location in
+                                 drag = nil
+                                 onDragEnd(cell.id, dropTarget(at: location, excluding: cell.id))
+                             })
+                        .background(GeometryReader { geometry in
+                            Color.clear.preference(key: CellFrames.self, value: [cell.id: geometry.frame(in: .named("grid"))])
+                        })
+                        .offset(dragged ? drag?.offset ?? .zero : .zero)
+                        .zIndex(dragged ? 1 : 0)
                 }
             }
+            .coordinateSpace(name: "grid")
+            .onPreferenceChange(CellFrames.self) { cellFrames = $0 }
         }
         .padding(8)
+    }
+
+    /// Where the insertion marker goes on this cell while another cell is dragged over it.
+    private func insertion(at id: CGWindowID) -> Side? {
+        guard let drag, let target = dropTarget(at: drag.location, excluding: drag.id), target.id == id else { return nil }
+        return target.side
+    }
+
+    /// The cell under `point` (grid coordinates) other than the dragged one, and which half it was dropped on.
+    private func dropTarget(at point: CGPoint, excluding id: CGWindowID) -> (id: CGWindowID, side: Side)? {
+        cellFrames.first { $0.key != id && $0.value.contains(point) }
+            .map { ($0.key, point.x < $0.value.midX ? Side.left : .right) }
+    }
+}
+
+private struct CellFrames: PreferenceKey {
+    static let defaultValue: [CGWindowID: CGRect] = [:]
+    static func reduce(value: inout [CGWindowID: CGRect], nextValue: () -> [CGWindowID: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 
 private struct CellView: View {
     let cell: PanelCell
-    let action: () -> Void
-    let dragEnded: () -> Void
+    let dragged: Bool
+    /// Side of this cell where a dragged cell would be inserted, if it is dropped now.
+    let insertion: Side?
+    let action: (CGMouseButton) -> Void
+    let dragChanged: (CGSize, CGPoint) -> Void
+    let dragEnded: (CGPoint) -> Void
     @State private var hovering = false
-    @State private var dragging = false
 
     var body: some View {
         Image(nsImage: cell.image)
             .padding(2)
-            .background(RoundedRectangle(cornerRadius: 5).fill(.primary.opacity(hovering ? 0.15 : 0)))
-            .opacity(dragging ? 0.4 : 1)
+            .background(RoundedRectangle(cornerRadius: 5).fill(.primary.opacity(hovering || dragged ? 0.15 : 0)))
+            .overlay(alignment: insertion == .right ? .trailing : .leading) {
+                if let insertion {
+                    Capsule().fill(Color.accentColor).frame(width: 3).offset(x: insertion == .left ? -3.5 : 3.5)
+                }
+            }
+            .scaleEffect(dragged ? 1.1 : 1)
+            .shadow(radius: dragged ? 6 : 0)
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
-            .onTapGesture(perform: action)
-            .gesture(DragGesture(minimumDistance: 6)
-                .onChanged { _ in dragging = true }
-                .onEnded { _ in
-                    dragging = false
-                    dragEnded()
-                })
+            .onTapGesture { action(.left) }
+            .overlay(RightClickCatcher { action(.right) })
+            .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("grid"))
+                .onChanged { dragChanged($0.translation, $0.location) }
+                .onEnded { dragEnded($0.location) })
             .help(cell.name)
+    }
+}
+
+/// Catches right clicks only; every other event passes through to the SwiftUI cell beneath (SwiftUI on macOS
+/// has no right-click gesture).
+private struct RightClickCatcher: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> CatcherView { CatcherView(action: action) }
+    func updateNSView(_ view: CatcherView, context: Context) { view.action = action }
+
+    final class CatcherView: NSView {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            NSApp.currentEvent?.type == .rightMouseDown ? super.hitTest(point) : nil
+        }
+
+        override func rightMouseDown(with event: NSEvent) { action() }
     }
 }
 
@@ -124,12 +203,16 @@ final class Panel {
     private let window = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                                   backing: .buffered, defer: true)
     private let hosting = NSHostingView(rootView: PanelView(cells: [], needsScreenRecording: false,
-                                                            onClick: { _ in }, onDragEnd: { _ in }))
+                                                            onClick: { _, _ in }, onDragEnd: { _, _ in }))
     private let discover: () -> [StatusWindow]
-    private let onClick: (StatusWindow) -> Void
+    private let onClick: (StatusWindow, CGMouseButton) -> Void
     private let onDropOnMenuBar: (StatusWindow) -> Void
+    private let onReorder: (StatusWindow, StatusWindow, Side) -> Void
     private var anchor: NSStatusBarButton?
     private var items: [StatusWindow] = []
+    /// After a reorder, the panel keeps its own order for a moment instead of rediscovering, so the dropped
+    /// cell does not flicker while the real item is still being moved.
+    private var keepOrderUntil = Date.distantPast
     private var images: [CGWindowID: NSImage] = [:]
     private var capturing = false
     /// Until a capture has returned real pixels, only the first item is captured; after a refresh that
@@ -142,11 +225,12 @@ final class Panel {
 
     var isOpen: Bool { window.isVisible }
 
-    init(discover: @escaping () -> [StatusWindow], onClick: @escaping (StatusWindow) -> Void,
-         onDropOnMenuBar: @escaping (StatusWindow) -> Void) {
+    init(discover: @escaping () -> [StatusWindow], onClick: @escaping (StatusWindow, CGMouseButton) -> Void,
+         onDropOnMenuBar: @escaping (StatusWindow) -> Void, onReorder: @escaping (StatusWindow, StatusWindow, Side) -> Void) {
         self.discover = discover
         self.onClick = onClick
         self.onDropOnMenuBar = onDropOnMenuBar
+        self.onReorder = onReorder
         window.level = .popUpMenu
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isOpaque = false
@@ -178,7 +262,9 @@ final class Panel {
         window.makeKeyAndOrderFront(nil)
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in self?.refresh() }
         monitors = [
-            NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
+            NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+                // Tray's own synthetic events (reordering) carry user data; the owner's clicks do not.
+                guard event.cgEvent?.getIntegerValueField(.eventSourceUserData) == 0 else { return }
                 self?.close()
             },
             NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -199,7 +285,7 @@ final class Panel {
     }
 
     private func refresh() {
-        items = discover()
+        if Date() >= keepOrderUntil { items = discover() }
         render()
         guard CGPreflightScreenCaptureAccess(), !capturing, !captureFailed, !items.isEmpty else { return }
         capturing = true
@@ -231,17 +317,25 @@ final class Panel {
         }
         hosting.rootView = PanelView(
             cells: cells, needsScreenRecording: !CGPreflightScreenCaptureAccess(),
-            onClick: { [weak self] id in
+            onClick: { [weak self] id, button in
                 guard let self, let item = self.items.first(where: { $0.windowID == id }) else { return }
                 self.close()
-                self.onClick(item)
+                self.onClick(item, button)
             },
-            onDragEnd: { [weak self] id in
-                guard let self, let item = self.items.first(where: { $0.windowID == id }),
-                      isInMenuBar(NSEvent.mouseLocation)
-                else { return }
-                self.close()
-                self.onDropOnMenuBar(item)
+            onDragEnd: { [weak self] id, target in
+                guard let self, let item = self.items.first(where: { $0.windowID == id }) else { return }
+                if let target, let other = self.items.first(where: { $0.windowID == target.id }) {
+                    // Show the new order at once; the panel stays open while the real item moves.
+                    self.items.removeAll { $0.windowID == id }
+                    let index = self.items.firstIndex { $0.windowID == target.id } ?? self.items.endIndex
+                    self.items.insert(item, at: target.side == .left ? index : min(index + 1, self.items.endIndex))
+                    self.keepOrderUntil = Date().addingTimeInterval(1.5)
+                    self.render()
+                    self.onReorder(item, other, target.side)
+                } else if isInMenuBar(NSEvent.mouseLocation) {
+                    self.close()
+                    self.onDropOnMenuBar(item)
+                }
             })
         guard let anchorWindow = anchor?.window, let screen = anchorWindow.screen ?? NSScreen.main else { return }
         let size = hosting.fittingSize

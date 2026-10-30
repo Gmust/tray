@@ -111,5 +111,5 @@ Recorded by the agent; each was asked for or accepted by the owner, 2026-10-30.
 - UI language: English only (the brief asked for Russian menu items: «Расставить иконки» → Arrange Icons,
   «Обновить» → Refresh, «Запускать при входе» → Launch at Login, «Выйти» → Quit Tray).
 - §5 context menu replaced by drag & drop: drag a panel cell onto the menu bar to pin it; ⌘-drop a menu bar
-  item onto the chevron to put it into the tray.
+  item onto the chevron to put it into the tray; drag a cell onto another cell to reorder the tray.
 

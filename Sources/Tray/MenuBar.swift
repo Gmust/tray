@@ -15,8 +15,13 @@ final class MenuBar: NSObject {
     /// Set while Tray moves items itself, so its own moves are not taken for the owner's drops.
     private var busy = false
     private lazy var panel = Panel(discover: { [unowned self] in self.currentTrayItems() },
-                                   onClick: { [unowned self] item in Task { @MainActor in await self.forwardClick(to: item) } },
-                                   onDropOnMenuBar: { [unowned self] item in Task { @MainActor in await self.pin(item) } })
+                                   onClick: { [unowned self] item, button in
+                                       Task { @MainActor in await self.forwardClick(to: item, button: button) }
+                                   },
+                                   onDropOnMenuBar: { [unowned self] item in Task { @MainActor in await self.pin(item) } },
+                                   onReorder: { [unowned self] item, target, side in
+                                       Task { @MainActor in await self.reorder(item, nextTo: target, side: side) }
+                                   })
 
     override init() {
         Self.seedPositions()
@@ -142,11 +147,28 @@ final class MenuBar: NSObject {
         }
         add("Arrange Icons", #selector(toggleArrange), checked: expanded)
         add("Refresh", #selector(refresh))
+        let intervals = NSMenu()
+        for seconds in [0.5, 1, 2, 3] {
+            let item = NSMenuItem(title: seconds == 0.5 ? "0.5 s" : "\(Int(seconds)) s", action: #selector(setRefreshInterval(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = seconds
+            item.state = refreshInterval == seconds ? .on : .off
+            intervals.addItem(item)
+        }
+        let intervalItem = NSMenuItem(title: "Refresh Interval", action: nil, keyEquivalent: "")
+        intervalItem.submenu = intervals
+        menu.addItem(intervalItem)
         add("Launch at Login", #selector(toggleLaunchAtLogin), checked: SMAppService.mainApp.status == .enabled)
         menu.addItem(.separator())
         add("Quit Tray", #selector(NSApplication.terminate(_:)), key: "q")
         menu.items.last?.target = NSApp
         return menu
+    }
+
+    @objc private func setRefreshInterval(_ sender: NSMenuItem) {
+        guard let seconds = sender.representedObject as? Double else { return }
+        UserDefaults.standard.set(seconds, forKey: "refreshInterval")  // used from the panel's next opening
     }
 
     @objc private func toggleArrange() {
@@ -181,7 +203,7 @@ final class MenuBar: NSObject {
     /// it, wait until its menu closes, move it back left of its old right-hand neighbour (or of the
     /// separator). If it does not move, reveal the whole tray for the click instead.
     @MainActor
-    private func forwardClick(to item: StatusWindow) async {
+    private func forwardClick(to item: StatusWindow, button: CGMouseButton) async {
         guard !busy else { return }
         busy = true
         defer { busy = false }
@@ -190,13 +212,13 @@ final class MenuBar: NSObject {
         let neighbour = index.flatMap { tray.indices.contains($0 + 1) ? tray[$0 + 1].windowID : nil }
         let baseline = menuWindows(of: item.pid)
         if await moveStatusItem(item, nextTo: windowID(of: chevron), side: .left) {
-            await pressWhenOnScreen(item, baseline: baseline)
+            await pressWhenOnScreen(item, button: button, baseline: baseline)
             _ = await moveStatusItem(item, nextTo: neighbour ?? windowID(of: separator), side: .left)
         } else {
             log.error("move failed; revealing the tray for the click")
             expanded = true
             apply()
-            await pressWhenOnScreen(item, baseline: baseline)
+            await pressWhenOnScreen(item, button: button, baseline: baseline)
             expanded = false
             apply()
         }
@@ -206,7 +228,7 @@ final class MenuBar: NSObject {
     /// A synthetic click, not SPEC's AXPress first: Telegram (Qt) ignores AXPress, and waiting 1.5 s for its
     /// menu before falling back made the item sit by the chevron for 3 s (docs/FINDINGS.md).
     @MainActor
-    private func pressWhenOnScreen(_ item: StatusWindow, baseline: Set<CGWindowID>) async {
+    private func pressWhenOnScreen(_ item: StatusWindow, button: CGMouseButton, baseline: Set<CGWindowID>) async {
         var polls = 0
         while polls < 50, !(frame(of: item.windowID).map(isOnScreen) ?? false) {
             try? await Task.sleep(nanoseconds: 20_000_000)
@@ -214,7 +236,7 @@ final class MenuBar: NSObject {
         }
         let current = StatusWindow(windowID: item.windowID, pid: item.pid, frame: frame(of: item.windowID) ?? item.frame,
                                    onScreen: true)
-        await clickStatusItem(current, button: .left)
+        await clickStatusItem(current, button: button)
         _ = await waitForMenuToClose(of: current, baseline: baseline)
     }
 
@@ -236,6 +258,16 @@ final class MenuBar: NSObject {
         }
         log.info("pinned \(moved, privacy: .public)/\(system.count, privacy: .public) system items")
         if moved == system.count { UserDefaults.standard.set(true, forKey: key) }
+    }
+
+    /// A panel cell dropped on another: move the item before or after it in the tray (the panel's order is the
+    /// menu bar's order).
+    @MainActor
+    private func reorder(_ item: StatusWindow, nextTo target: StatusWindow, side: Side) async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        _ = await moveStatusItem(item, nextTo: target.windowID, side: side)
     }
 
     /// A panel cell dropped on the menu bar: pin the item right of the chevron.
