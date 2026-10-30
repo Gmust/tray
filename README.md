@@ -27,10 +27,11 @@ Made for MacBooks with a notch, where there is never enough room to the right of
 
 ## Install
 
-There is no signed download yet, so for now Tray is built from source. It takes a minute. In a clone
-of this repository, run:
+There is no signed download yet, so for now Tray is built from source. It takes a minute:
 
 ```sh
+git clone https://github.com/Gmust/tray.git
+cd tray
 scripts/build.sh
 ```
 
@@ -131,3 +132,7 @@ defaults write dev.illia.tray panelMaxWidth 480   # 200–800
 
 Moving menu bar icons with synthetic ⌘-drags, and capturing hidden icons with CoreGraphics, follow the
 approach of [Ice](https://github.com/jordanbaird/Ice) by Jordan Baird (GPL-3.0).
+
+## License
+
+Tray is free software under the [GNU General Public License v3.0](LICENSE).

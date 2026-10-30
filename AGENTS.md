@@ -64,7 +64,7 @@ unverified on the owner's Mac is listed in docs/HANDOFF.yaml.
 - When review or an incident misses a bug, add what the reviewer lacked: a rule here or in REVIEW.md, or a check.
 
 ## Boundaries
-Do not edit without asking: `Package.swift` dependencies (none allowed); the bundle id `dev.illia.tray` and
+Do not edit without asking: `LICENSE` (GPL-3.0, required by the Ice-derived `Move.swift`); `Package.swift` dependencies (none allowed); the bundle id `dev.illia.tray` and
 the signing in `scripts/build.sh` (changing either revokes Accessibility / Screen Recording grants and
 saved item positions); `.github/workflows/`.
 Human review required: `scripts/build.sh`, `.github/workflows/`, code that posts synthetic CGEvents.

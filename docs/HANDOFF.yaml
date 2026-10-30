@@ -18,7 +18,7 @@ decisions:
   - --dump finds Tray's chevron/separator via AX identifiers; inTray needs a running Tray + AX
   - order check waits for placement + confirms a wrong order after 0.5 s (false positives otherwise)
   - duplicate same-frame windows per item: keep higher windowID — original gets no frames (replayd log)
-  - personal use only, no LICENSE; if the repo is ever published, add GPL-3.0 first (Move.swift follows Ice, GPL-3.0)
+  - public repo github.com/Gmust/tray (push via ssh host github-personal), GPL-3.0 (Move.swift follows Ice, GPL-3.0); commit author unchanged
   - owner changes to the brief live at the end of docs/SPEC.md (Apple items pinned once, CG capture, click-first, drag&drop, indicator)
   - click = synthetic click first (AXPress dropped: Qt ignores it) — deviation from SPEC §5
   - capture via CGImage(windowListFromArrayScreenBounds:) like Ice, not SPEC's SCScreenshotManager — SCK gets no frames off-screen (owner to confirm deviation)
