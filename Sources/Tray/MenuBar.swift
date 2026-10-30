@@ -105,7 +105,7 @@ final class MenuBar: NSObject {
     private func showOrderHint() {
         guard let button = chevron.button else { return }
         let label = NSTextField(wrappingLabelWithString:
-            "Разделитель «│» должен стоять слева от шеврона.\nПеретащите его левее, удерживая ⌘.")
+            "The “│” separator must be left of the chevron.\nHold ⌘ and drag it to the left.")
         let height = label.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 260, height: 1_000)).height ?? 40
         label.frame = NSRect(x: 12, y: 12, width: 260, height: height)
         let controller = NSViewController()
@@ -140,11 +140,11 @@ final class MenuBar: NSObject {
             item.state = checked ? .on : .off
             menu.addItem(item)
         }
-        add("Расставить иконки", #selector(toggleArrange), checked: expanded)
-        add("Обновить", #selector(refresh))
-        add("Запускать при входе", #selector(toggleLaunchAtLogin), checked: SMAppService.mainApp.status == .enabled)
+        add("Arrange Icons", #selector(toggleArrange), checked: expanded)
+        add("Refresh", #selector(refresh))
+        add("Launch at Login", #selector(toggleLaunchAtLogin), checked: SMAppService.mainApp.status == .enabled)
         menu.addItem(.separator())
-        add("Выйти", #selector(NSApplication.terminate(_:)), key: "q")
+        add("Quit Tray", #selector(NSApplication.terminate(_:)), key: "q")
         menu.items.last?.target = NSApp
         return menu
     }

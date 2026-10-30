@@ -121,5 +121,10 @@ Machine: MacBook Air (notch), macOS 15.7.9, arm64, plus one external 4K display.
   back after 1.5 s. Normal-layer windows hanging from the menu bar now count. Fix unverified. Evidence:
   Tray log "menu of 77831: nothing opened", 2026-10-30.
 
+- **Live Screen Recording check.** Readable `kCGWindowName` on another app's status window (Ice's check)
+  gave false from Claude Code's shell (no grant) and true from Tray.app (granted), while
+  `CGPreflightScreenCaptureAccess` only reflects launch time (per Ice's source). Evidence: `--dump` both
+  ways, 2026-10-30.
+
 ## Open
 - Does AX follow the display with the active menu bar, together with the "original" windows?

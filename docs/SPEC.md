@@ -108,6 +108,8 @@ Recorded by the agent; each was asked for or accepted by the owner, 2026-10-30.
   no frames for off-screen items on the notch display (docs/FINDINGS.md).
 - §3: macOS's purple screen-recording indicator is accepted; Tray leaves it alone and keeps it out of the panel.
 - §5: a synthetic click first instead of AXPress (Telegram ignores AXPress).
+- UI language: English only (the brief asked for Russian menu items: «Расставить иконки» → Arrange Icons,
+  «Обновить» → Refresh, «Запускать при входе» → Launch at Login, «Выйти» → Quit Tray).
 - §5 context menu replaced by drag & drop: drag a panel cell onto the menu bar to pin it; ⌘-drop a menu bar
   item onto the chevron to put it into the tray.
 

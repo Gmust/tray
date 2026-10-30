@@ -1,13 +1,14 @@
-goal: Tray phase 5 — click forwarding (§5) + owner's drag&drop (panel→menu bar pins; ⌘-drop on chevron → tray)
+goal: Tray phase 6 — onboarding (SPEC §7); branch phase-6-onboarding
 done:
   - 604abdc phase 1 — package, signed bundle, --dump (AX match 19/19 built-in items)
   - 6c04035 phase 2 — hiding, chevron menu, logger
+  - be5289e phase 5 — click forwarding, drag & drop, Apple items pinned once
   - 3e3928d phases 3+4 — panel with live CG captures: 17/17 items live, Stats updates off-screen, ≤1 consent alert (owner screenshots)
   - Preferred Position semantics — distance from screen right edge to item maxX; 6/6 Apple items exact (docs/FINDINGS.md)
   - phase 2 on Mac: seeding 0/1 → chevron+separator rightmost; collapse hides 17 items on both displays; AXPress toggle both ways; quit restores exact positions (--dump)
-wip: phase 5 + owner changes uncommitted; verified: Telegram click, drag-to-pin, ⌘-drop, Apple items pinned once (log 'pinned 2/2', --dump); unverified: Stats popover detection
+wip: Onboarding.swift + --onboarding + English-only UI uncommitted; onboarding window shown (log); live SR check verified both ways; look unverified
 blocked: null
-next: owner clicks a Stats cell (popover must stay until closed); commit when owner agrees; then onboarding (§7) or right-click forwarding
+next: owner checks onboarding window (both ✅, Готово closes it); then commit; remaining: right-click forwarding, settings
 decisions:
   - gate = `swift test`; CI = same on macos-15, push + PR
   - --dump stays raw (all layer-25 windows); display/height filtering belongs to tray discovery (phase 2)

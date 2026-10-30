@@ -57,14 +57,14 @@ struct PanelView: View {
         VStack(alignment: .leading, spacing: 8) {
             if needsScreenRecording {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Чтобы показывать значки вживую, Tray нужен доступ к записи экрана.")
+                    Text("To show items live, Tray needs Screen Recording access.")
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Открыть настройки", action: openScreenRecordingSettings)
+                    Button("Open System Settings", action: openScreenRecordingSettings)
                 }
                 .frame(width: 260, alignment: .leading)
             }
             if cells.isEmpty {
-                Text("Трей пуст").foregroundStyle(.secondary)
+                Text("The tray is empty").foregroundStyle(.secondary)
             }
             FlowLayout(maxWidth: maxPanelWidth - 16, spacing: 4) {
                 ForEach(cells) { cell in

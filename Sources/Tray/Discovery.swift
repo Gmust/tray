@@ -182,7 +182,7 @@ func dump() {
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    let output = Output(accessibility: AXIsProcessTrusted(), screenRecording: CGPreflightScreenCaptureAccess(),
+    let output = Output(accessibility: AXIsProcessTrusted(), screenRecording: screenRecordingGranted(),
                         chevron: layout?.chevron.frame, separator: layout?.separator.frame, items: items)
     // Encoding plain structs of strings and numbers cannot fail.
     FileHandle.standardOutput.write(try! encoder.encode(output))

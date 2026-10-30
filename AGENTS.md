@@ -18,7 +18,8 @@ Out of scope: App Store, sandbox, Intel, macOS < 14, `.xcodeproj`, third-party d
 4. [docs/HANDOFF.yaml](docs/HANDOFF.yaml): current state.
 5. Code. When code and SPEC disagree, SPEC wins: fix the code or ask.
 
-UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Figma. Russian UI strings in SPEC are verbatim.
+UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Figma. UI text is English only
+(owner's change; the brief's Russian strings are superseded, see the end of SPEC).
 
 ## Code and document map
 | Area | Path | Owns | Checks |
@@ -26,6 +27,7 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 | Entry / CLI | `Sources/Tray/main.swift` | argument dispatch: no args = app mode, `--dump`, `--capture <dir>` | `swift test` |
 | Menu bar | `Sources/Tray/MenuBar.swift` | chevron + separator (collapse, arrange, order safety, first-launch positions, Apple items pinned once), click forwarding, drag & drop, chevron menu, os.Logger | `log stream`, `--dump` |
 | Panel | `Sources/Tray/Panel.swift` | floating panel (NSPanel + SwiftUI flow layout), 1 s live refresh, image cache, permission banner | `swift test`, owner's eyes |
+| Onboarding | `Sources/Tray/Onboarding.swift` | permission window (SPEC §7), live Screen Recording check, relaunch after grant | `Tray --onboarding` |
 | Move / click | `Sources/Tray/Move.swift` | synthetic ⌘-drag moves (Ice's event-tap delivery), clicks, menu-close wait, `--move` | `--move`, owner's eyes |
 | Capture | `Sources/Tray/Capture.swift` | 2x (Retina) images of status windows via CoreGraphics (not ScreenCaptureKit: see docs/FINDINGS.md), `--capture` PNGs | `swift test`, `--capture` |
 | Discovery | `Sources/Tray/Discovery.swift` | status windows (CGWindowList, layer 25), tray selection, AX `AXExtrasMenuBar` match, `--dump` JSON | `swift test`, `--dump` |
@@ -38,7 +40,7 @@ UI design source: SPEC §4 (panel), §6 (chevron menu), §7 (onboarding). No Fig
 
 Owner's changes to the brief are listed at the end of [docs/SPEC.md](docs/SPEC.md). Gestures (replacing SPEC §5's cell context menu): drag a panel cell onto the menu bar
 to pin it; ⌘-drop a menu bar item onto the chevron to put it in the tray.
-Not implemented yet: right-click forwarding (§5), onboarding (§7), refresh-interval and panel-width
+Not implemented yet: right-click forwarding (§5), refresh-interval and panel-width
 settings (constants in `Panel.swift`).
 
 ## Working rules
@@ -85,7 +87,8 @@ Not part of the gate:
   (needs a running Tray and Screen Recording for Tray.app; without Accessibility it finds Tray's items by geometry).
   Running `build/Tray.app/Contents/MacOS/Tray --dump` directly works too, but TCC then checks the
   terminal's grants, not Tray's.
-- App mode: `open build/Tray.app` (changes the live menu bar: ask first). Quit: chevron right-click → «Выйти»,
+- App mode: `open build/Tray.app` (changes the live menu bar: ask first); add `--args --onboarding` to
+  show the permission window even when both permissions are granted. Quit: chevron right-click → Quit Tray,
   or `pkill -x Tray`; quitting always brings every item back.
 - Logs: `/usr/bin/log stream --level debug --predicate 'subsystem == "dev.illia.tray"'`. Use the full path:
   in zsh, `log` is a shell builtin.
